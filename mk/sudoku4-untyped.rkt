@@ -11,20 +11,13 @@
     ((conj g ...)
      (conde (g ...)))))
 
-(defrel (n4 o46646) (disj (== o46646 '0) (== o46646 '1) (== o46646 '2) (== o46646 '3)))
+(defrel (n4 o256556) (disj (== o256556 '0) (== o256556 '1) (== o256556 '2) (== o256556 '3)))
 
 (defrel (diffo n o)
   (n4 n) (n4 o)
   (=/= n o))
 
-(defrel (valid_4x4 a b c d)
-  (conj
-   (diffo a b)
-   (diffo a c)
-   (diffo a d)
-   (diffo b c)
-   (diffo b d)
-   (diffo c d)))
+(defrel (valid_4x4 a b c d) (conj (diffo a b) (diffo a c) (diffo a d) (diffo b c) (diffo b d) (diffo c d)))
 
 (defrel
   (sudoku_4x4 a b c d e f g h i j k l m n o p)
@@ -42,4 +35,5 @@
    (valid_4x4 d h l p)
    (valid_4x4 c g k o)))
 
-(run 1 (a b c d e f g h i j k l m n o p) (sudoku_4x4 3 b 0 d e f g h i j k l m 0 o 2))
+(run 1 (r12 r14 r21 r22 r23 r24 r31 r32 r33 r34 r41 r43)
+  (sudoku_4x4 3 r12 0 r14 r21 r22 r23 r24 r31 r32 r33 r34 r41 0 r43 2)
