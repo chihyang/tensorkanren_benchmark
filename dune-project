@@ -9,10 +9,10 @@
 
 (package
  (name tkbenchmark)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "TensorKanren's benchmark")
+ (description "This project is the benchmark for tensorKanren, a different way of running miniKanren.")
  (depends ocaml owl-top msat)
  (tags
-  ("add topics" "to describe" your project)))
+  ("miniKanren" your project)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
