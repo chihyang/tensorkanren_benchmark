@@ -85,7 +85,7 @@ let n4 : adt = Sum(Unit, Sum(Unit, Sum(Unit, Unit)));;
   diffo;valid_4x4;sudoku_4x4;
   {
   name = "maino";
-  args = [n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4];
+  args = [n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4;n4];
   body =
   Fresh(Unit,
   Conj(
@@ -135,7 +135,7 @@ let n4 : adt = Sum(Unit, Sum(Unit, Sum(Unit, Unit)));;
   (0, n4),
   (1, Sum(Unit, Sum(Unit, Unit)))),
   Rel("sudoku_4x4",
-[(8, n4); (13, n4); (7, n4); (15, n4); (16, n4); (17, n4); (18, n4); (19, n4); (20, n4); (21, n4); (22, n4); (23, n4); (24, n4); (5, n4); (26, n4); (0, n4)]))))))))))))))))))))))}];;
+[(8, n4); (12, n4); (7, n4); (13, n4); (14, n4); (15, n4); (16, n4); (17, n4); (18, n4); (19, n4); (20, n4); (21, n4); (22, n4); (5, n4); (23, n4); (0, n4)]))))))))))))))))))))))}];;
 
 end
 
