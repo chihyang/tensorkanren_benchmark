@@ -4,6 +4,16 @@
  (libraries tensorkanren))
 
 (executable
- (public_name sudoku9)
- (name sudoku9)
+ (public_name sudoku9-medium)
+ (name sudoku9_medium)
+ (libraries tensorkanren))
+
+(executable
+ (public_name sudoku9-hard)
+ (name sudoku9_hard)
+ (libraries tensorkanren))
+
+(executable
+ (public_name sudoku9-expert)
+ (name sudoku9_expert)
  (libraries tensorkanren))
