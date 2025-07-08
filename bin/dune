@@ -1,0 +1,9 @@
+(executable
+ (public_name sudoku4)
+ (name sudoku4)
+ (libraries tensorkanren))
+
+(executable
+ (public_name sudoku9)
+ (name sudoku9)
+ (libraries tensorkanren))
