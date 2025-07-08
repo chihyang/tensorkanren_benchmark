@@ -4,6 +4,11 @@
  (libraries tensorkanren))
 
 (executable
+ (public_name sudoku4-eval)
+ (name sudoku4_eval)
+ (libraries tensorkanren))
+
+(executable
  (public_name sudoku9-medium)
  (name sudoku9_medium)
  (libraries tensorkanren))
