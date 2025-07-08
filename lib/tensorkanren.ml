@@ -1,4 +1,4 @@
-(* #require "owl-top" (\* TODO: reinstall owl-top *\) *)
+(* #require "owl-top" *)
 (* #require "msat" *)
 (* #require "msat.sat" *)
 (* #require "msat.tseitin" *)
@@ -6,7 +6,6 @@
 module Sat = Msat_sat
 module E = Sat.Int_lit
 module F = Msat_tseitin.Make(E)
-
 
 open Owl
 
@@ -208,7 +207,7 @@ module TK = struct
         Prod (bool_adt, c) (* put a tag in front of it *)
     | Prod (x, y) -> Prod (compile_adt x, compile_adt y)
 
-  let compile_var (v, vt) : var = (v, compile_adt vt)
+  let compile_var (v, vt) = (v, compile_adt vt)
 
   (* variable (of compiled type) and original type, ensures only inhabits valid values *)
   let rec enforce_var_type (v : var) (ot : adt) =
@@ -247,6 +246,82 @@ module TK = struct
                 enforce_var_type (0, yt) bt))))
     | _ -> invalid_arg "Var has improperly compiled type!"
 
+  (* assumes both source and target are (potentially different) compiled versions *)
+  (* generates code so that they both hold the same value *)
+  (* unifying with Unit doesn't require a variable, so use -1 dummy variable. shouldn't make it to output *)
+  (* not 100% sure of correctness for cases when unifying bool with prod *)
+  let rec coerced_unify (x : var) (y : var) : 'elt tk =
+    let xv, xt = x in
+    let yv, yt = y in
+    match xt, yt with
+    | Unit, Unit -> Succeed
+    | Unit, Sum (Unit, Unit) -> trueo y
+    | Unit, Prod (yat, ydt) ->
+        Fresh (yat,
+          Fresh (ydt,
+            Conj (
+              Pairo ((yv + 2, yt), (1, yat), (0, ydt)),
+              Conj (
+                coerced_unify (-1, Unit) (1, yat),
+                coerced_unify (-1, Unit) (0, ydt)))))
+    | Sum (Unit, Unit), Unit -> trueo x
+    | Sum (Unit, Unit), Sum (Unit, Unit) -> Eqo (x, y)
+    | Sum (Unit, Unit), Prod (yat, ydt) ->
+        if adt_size yat > 1 then
+          Fresh (yat,
+            Fresh (ydt,
+              Conj (
+                Pairo ((yv + 2, yt), (1, yat), (0, ydt)),
+                Conj (
+                  coerced_unify (xv + 2, xt) (1, yat),
+                  coerced_unify (-1, Unit) (0, ydt)))))
+        else
+          Fresh (yat,
+            Fresh (ydt,
+              Conj (
+                Pairo ((yv + 2, yt), (1, yat), (0, ydt)),
+                Conj (
+                  coerced_unify (-1, Unit) (1, yat),
+                  coerced_unify (xv + 2, xt) (0, ydt)))))
+    | Prod (xat, xdt), Unit ->
+        Fresh (xat,
+          Fresh (xdt,
+            Conj (
+              Pairo ((xv + 2, xt), (1, xat), (0, xdt)),
+              Conj (
+                coerced_unify (1, xat) (-1, Unit),
+                coerced_unify (0, xdt) (-1, Unit)))))
+    | Prod (xat, xdt), Sum (Unit, Unit) ->
+        if adt_size xat > 1 then
+          Fresh (xat,
+            Fresh (xdt,
+              Conj (
+                Pairo ((xv + 2, xt), (1, xat), (0, xdt)),
+                Conj (
+                  coerced_unify (1, xat) (yv + 2, yt),
+                  coerced_unify (0, xdt) (-1, Unit)))))
+        else
+          Fresh (xat,
+            Fresh (xdt,
+              Conj (
+                Pairo ((xv + 2, xt), (1, xat), (0, xdt)),
+                Conj (
+                  coerced_unify (1, xat) (-1, Unit),
+                  coerced_unify (0, xdt) (yv + 2, yt)))))
+    | Prod (xat, xdt), Prod (yat, ydt) ->
+        Fresh (xat,
+          Fresh (xdt,
+            Fresh (yat,
+              Fresh (ydt,
+                Conj (
+                  Conj (
+                    Pairo ((xv + 4, xt), (3, xat), (2, xdt)),
+                    Pairo ((yv + 4, yt), (1, yat), (0, ydt))),
+                  Conj (
+                    coerced_unify (3, xat) (1, yat),
+                    coerced_unify (2, xdt) (0, ydt)))))))
+    | _, _ -> invalid_arg "Impossible case!"
+
   let rec compile_tk (e : 'elt tk) : 'elt tk =
     match e with
     | Succeed -> Succeed
@@ -258,32 +333,43 @@ module TK = struct
           Conj (
             enforce_var_type (0, compile_adt t) t,
             compile_tk exp))
-    | Rel (name, args) -> Rel (name, List.map compile_var args)
+    | Rel (name, args) ->
+        Rel (name,
+          List.map (fun (v, vt) -> (v, compile_adt vt)) args)
     | Eqo (a, b) -> Eqo (compile_var a, compile_var b)
     | Neqo (a, b) -> Neqo (compile_var a, compile_var b)
     | Soleo (v, vt) -> Soleo (v, compile_adt vt)
     | Lefto ((ab, Sum (Unit, Unit)), (a, Unit)) -> (* a + b, a *)
         Lefto ((ab, Sum (Unit, Unit)), (a, Unit))
-    | Lefto ((ab, abt), (a, _)) -> (* a + b, a *)
-       (match (compile_adt abt) with
+    | Lefto ((ab, abt), (a, at)) -> (* a + b, a *)
+       (match compile_adt abt with
        | Prod (_, vt) as abtc -> (* get the compiled child type *)
-          Fresh (bool_adt,
-                 Conj (
-                     Pairo ((ab + 1, abtc), (0, bool_adt), (a + 1, vt)),
-                     trueo (0, bool_adt)))
+          Fresh (vt,
+                 Fresh (bool_adt,
+                        Conj (
+                            Conj (
+                                coerced_unify (1, vt) (a + 2, compile_adt at),
+                                Pairo ((ab + 2, abtc), (0, bool_adt), (1, vt))),
+                            trueo (0, bool_adt))))
        | _ -> invalid_arg "Impossible case!")
     | Righto ((ab, Sum (Unit, Unit)), (b, Unit)) -> (* a + b, b *)
         Righto ((ab, Sum (Unit, Unit)), (b, Unit))
-    | Righto ((ab, abt), (b, _)) -> (* a + b, b *)
+    | Righto ((ab, abt), (b, bt)) -> (* a + b, b *)
        (match (compile_adt abt) with
        | Prod (_, vt) as abtc -> (* get the compiled child type *)
+          Fresh (vt,
           Fresh (bool_adt,
-                 Conj (
-                     Pairo ((ab + 1, abtc), (0, bool_adt), (b + 1, vt)),
-                     falseo (0, bool_adt)))
+            Conj (
+              Conj (
+                coerced_unify (1, vt) (b + 2, compile_adt bt),
+                Pairo ((ab + 2, abtc), (0, bool_adt), (1, vt))),
+              falseo (0, bool_adt))))
        | _ -> invalid_arg "Impossible case!")
-    | Pairo (ab, a, b) -> (* a * b, a, b *)
-        Pairo (compile_var ab, compile_var a, compile_var b)
+    | Pairo ((ab, abt), (a, _), (b, _)) -> (* a * b, a, b *)
+       (match compile_adt abt with
+       | Prod (atc, btc) as abtc ->
+          Pairo ((ab, abtc), (a, atc), (b, btc))
+       | _ -> invalid_arg "Impossible case!")
     | Factor x -> Factor x
 
   let enforce_arg_types (cts : adt list) (ots : adt list) : 'elt tk =
@@ -692,18 +778,8 @@ module SatTK = struct
     | SatUnit, SatUnit -> F.f_true
     | SatVar v1, SatVar v2 -> F.make_equiv (F.make_atom v1) (F.make_atom v2)
     | SatPair (sv1a, sv1d), SatPair (sv2a, sv2d) ->
-        F.make_and [unify_satvars sv1a sv2a; unify_satvars sv1d sv2d]
-    | SatUnit, SatVar v -> F.make_atom v
-    | SatUnit, SatPair (sva, svd) ->
-        F.make_and [unify_satvars SatUnit sva; unify_satvars SatUnit svd]
-    | SatVar v, SatUnit -> F.make_atom v
-    | SatPair (sva, svd), SatUnit ->
-        F.make_and [unify_satvars sva SatUnit; unify_satvars svd SatUnit]
-    | SatVar v, SatPair (sva, svd) ->
-        F.make_and [unify_satvars (SatVar v) sva; unify_satvars SatUnit svd]
-    | SatPair (sva, svd), SatVar v ->
-        F.make_and [unify_satvars sva (SatVar v); unify_satvars svd SatUnit]
-
+       F.make_and [unify_satvars sv1a sv2a; unify_satvars sv1d sv2d]
+    | _, _ -> invalid_arg "Impossible case!"
 
   (* env has satdts at index corresponding to variable number *)
   let rec sat_of_tk (exp : bool tk) (env : satvar list) : F.t =
