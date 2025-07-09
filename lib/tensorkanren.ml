@@ -815,7 +815,7 @@ module SatTK = struct
           let bsv = List.nth env bv in
           F.make_and [unify_satvars absva asv; unify_satvars absvd bsv]
        | _ -> invalid_arg "impossible case!")
-      | Factor x -> if x then F.f_true else F.f_false
+    | Factor x -> if x then F.f_true else F.f_false
 
   let rec reify_satvar evalr v =
     match v with
@@ -823,13 +823,51 @@ module SatTK = struct
     | SatVar sv -> if (evalr sv) then Left Sole else Right Sole
     | SatPair (a, d) -> Pair (reify_satvar evalr a, reify_satvar evalr d)
 
+  let rec count_adt_bool_vars t =
+    match t with
+    | Unit -> 0
+    | Prod (x, y) -> (count_adt_bool_vars x) + (count_adt_bool_vars y)
+    | Sum (Unit, Unit) -> 1
+    | _ -> invalid_arg "Invalid compiled adt"
+
+  let rec count_tk_bool_vars exp =
+    match exp with
+    | Succeed -> 0
+    | Fail -> 0
+    | Conj (e1, e2) -> (count_tk_bool_vars e1) + (count_tk_bool_vars e2)
+    | Disj (e1, e2) -> (count_tk_bool_vars e1) + (count_tk_bool_vars e2)
+    | Fresh (t, body) -> (count_adt_bool_vars t) + (count_tk_bool_vars body)
+    | Rel (name, _) -> invalid_arg ("sat_of_tk doesn't handle recursions, given " ^ name)
+    | Eqo _ -> 0
+    | Neqo _ -> 0
+    | Soleo _ -> 0
+    | Lefto _ -> 0
+    | Righto _ -> 0
+    | Pairo _ -> 0
+    | Factor _ -> 0
+
   let sat_eval_tk_prgm (p : bool tk_prgm) (name : string) (gas : int) =
     let comp_p = TK.compile_tk_prgm p in
     let rel_to_convert = List.find (fun r -> r.name = name) comp_p in
     let rel_unrolled = unroll_recursions rel_to_convert.body comp_p gas in
     let sat_args = List.map satvar_of_adt rel_to_convert.args in
+    let arg_bool_var_count =
+      List.fold_left (fun acc a -> acc + (count_adt_bool_vars a)) 0 rel_to_convert.args
+    in
+    let rel_bool_var_count = count_tk_bool_vars rel_unrolled in
+    print_string "SAT var count: ";
+    print_endline (string_of_int (rel_bool_var_count + arg_bool_var_count));
     let rel_tseitin = sat_of_tk rel_unrolled sat_args in
     let prgm_cnf = F.make_cnf rel_tseitin in
+    let conj_count = List.length prgm_cnf in
+    let total_disj_count =
+      List.fold_left (fun acc a -> acc + (List.length a)) 0 prgm_cnf
+    in
+    let avg_disjunction_count = (float_of_int total_disj_count) /. (float_of_int conj_count) in
+    print_string "Num SAT clauses: ";
+    print_endline (string_of_int conj_count);
+    print_string "Average SAT clause length: ";
+    print_endline (string_of_float avg_disjunction_count);
     let solver = Sat.create () in
     Sat.assume solver prgm_cnf ();
     match Sat.solve solver with
